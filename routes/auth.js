@@ -8,6 +8,10 @@ const { sendVerificationCode, sendPasswordResetCode } = require('../lib/mailer')
 
 const VERIFICATION_MINUTES = parseInt(process.env.VERIFICATION_MINUTES, 10) || 10;
 
+function tokenExpiry(rememberMe) {
+  return rememberMe ? (process.env.JWT_EXPIRES_IN_REMEMBER || '30d') : (process.env.JWT_EXPIRES_IN || '7d');
+}
+
 function signToken(user, rememberMe = false) {
   return jwt.sign(
     {
@@ -15,9 +19,22 @@ function signToken(user, rememberMe = false) {
       username: user.Username,
       role: user.Role,
       wgCode: user.WGCode,
+      loginType: 'admin',
     },
     process.env.JWT_SECRET,
-    { expiresIn: rememberMe ? (process.env.JWT_EXPIRES_IN_REMEMBER || '30d') : (process.env.JWT_EXPIRES_IN || '7d') }
+    { expiresIn: tokenExpiry(rememberMe) }
+  );
+}
+
+function signWorkerToken(wg, rememberMe = false) {
+  return jwt.sign(
+    {
+      workGroupID: wg.WorkGroupID,
+      wgCode: wg.WGCode,
+      loginType: 'worker',
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: tokenExpiry(rememberMe) }
   );
 }
 
@@ -172,8 +189,49 @@ router.post('/resend-verification', async (req, res) => {
 // POST /auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password, rememberMe } = req.body;
+    const { username, password, wgCode, rememberMe } = req.body;
 
+    // --- Login de TRABAJADOR vía WGCode ---
+    if (wgCode) {
+      if (!password) {
+        return res.status(400).json({ error: 'wgCode y password son requeridos' });
+      }
+
+      const [wgRows] = await pool.query(
+        'SELECT WorkGroupID, WGCode, WGLeader, Foreman, Supervisor, Password FROM db09_comm.ltblworkgroup WHERE WGCode = ?',
+        [wgCode]
+      );
+
+      if (wgRows.length === 0) {
+        return res.status(404).json({ error: 'Grupo de trabajo no encontrado' });
+      }
+
+      const wg = wgRows[0];
+
+      if (!wg.Password) {
+        return res.status(403).json({ error: 'Este grupo no tiene contraseña configurada' });
+      }
+
+      const wgMatch = await bcrypt.compare(password, wg.Password);
+      if (!wgMatch) {
+        return res.status(422).json({ error: 'Las credenciales no son correctas' });
+      }
+
+      const token = signWorkerToken(wg, !!rememberMe);
+      return res.json({
+        token,
+        loginType: 'worker',
+        workgroup: {
+          workGroupID: wg.WorkGroupID,
+          wgCode: wg.WGCode,
+          wgLeader: wg.WGLeader,
+          foreman: wg.Foreman,
+          supervisor: wg.Supervisor,
+        },
+      });
+    }
+
+    // --- Login de ADMIN/usuario móvil vía username ---
     if (!username || !password) {
       return res.status(400).json({ error: 'username y password son requeridos' });
     }
@@ -211,6 +269,7 @@ router.post('/login', async (req, res) => {
     const token = signToken(user, !!rememberMe);
     res.json({
       token,
+      loginType: 'admin',
       user: {
         userID: user.UserID,
         username: user.Username,
