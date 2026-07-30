@@ -1,5 +1,5 @@
 {
-  "name": "pcm-back",
+  "name": "cm-back",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {

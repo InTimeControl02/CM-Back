@@ -37,7 +37,7 @@ app.use('/workgroups', workgroupsRouter);
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`PCM API corriendo en http://0.0.0.0:${PORT}`);
+  console.log(`CM API corriendo en http://0.0.0.0:${PORT}`);
   console.log(`Desde celular: http://{IP-DE-ESTA-PC}:${PORT}`);
 });
 
