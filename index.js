@@ -9,17 +9,13 @@ const authRouter = require('./routes/auth');
 
 const app = express();
 
-// CORS — para clientes web (React Native lo ignora, aplica a browsers)
-// Agrega las IPs/orígenes de tus clientes web aquí
-const allowedOrigins = [
-  'http://localhost:8081',   // Expo web dev
-  'http://localhost:3000',
-  'http://127.0.0.1:8081',
-];
+// CORS — app LAN interna; las rutas ya están protegidas por API Key.
+// Permite localhost y cualquier IP privada de la red local (clientes web Expo).
+const LAN_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
 app.use(cors({
   origin: (origin, cb) => {
     // Sin origin = petición desde mobile/Postman/curl → permitir
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin || LAN_ORIGIN.test(origin)) return cb(null, true);
     cb(new Error(`Origen no permitido: ${origin}`));
   },
 }));
