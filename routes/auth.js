@@ -237,8 +237,8 @@ router.post('/login', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT * FROM db09_comm.tblmobileusers WHERE Username = ? AND IsActive = 1',
-      [username]
+      'SELECT * FROM db09_comm.tblmobileusers WHERE (Username = ? OR Email = ?) AND IsActive = 1',
+      [username, username]
     );
 
     if (rows.length === 0) {
